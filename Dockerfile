@@ -15,4 +15,6 @@ COPY --from=docker-gen /usr/local/bin/docker-gen /usr/local/bin/
 
 ENV DOCKER_HOST unix:///tmp/docker.sock
 
-CMD ["-watch", "-notify-output", "-notify", "bash /tmp/update-db", "update-db.tmpl","/tmp/update-db"]
+ENTRYPOINT ["/usr/local/bin/docker-gen"]
+
+CMD ["-watch","-notify-output", "-notify", "bash /tmp/update-db", "update-db.tmpl", "/tmp/update-db"]
