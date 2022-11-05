@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+retry_count=60
+
+wait_for_db()
+{
+echo "Waiting for database $1"
+local try_count=1
+while [ "$try_count" -le "$retry_count" ]; do
+    echo "Trying to establish connection to database - try # ${try_count}/${retry_count}"
+    if echo "SELECT 1" | mysql -uroot -h$1 -p$2 > /dev/null 2>&1; then
+        echo "Connection to database established"
+        break
+    fi
+    sleep 1
+    try_count=$((try_count + 1))
+done
+}
+
+{{ $dbServers := dict }}
+{{ range $container := . }}
+    {{ if $container.Env.MYSQL_ROOT_PASSWORD }}
+    {{ $serviceName := index $container.Labels "com.docker.compose.service" }}
+    {{ $dbServers = set $dbServers $serviceName $container.Env.MYSQL_ROOT_PASSWORD }}
+wait_for_db {{$serviceName}} {{ $container.Env.MYSQL_ROOT_PASSWORD }}
+    {{ end }}
+{{ end }}
+truncate /tmp/update.sql -s 0
+truncate /tmp/config.sh -s 0
+echo "declare -A services" >> /tmp/config.sh
+{{ range $container := . }}
+    {{ $dbUsername := $container.Env.DB_USER }}
+    {{ $dbPassword := $container.Env.DB_PASS }}
+    {{ $dbSchema := $container.Env.DB_SCHEMA }}
+    {{ $dbHost := $container.Env.DB_HOST }}
+    {{ $dbPort := default "3306" $container.Env.DB_PORT }}
+    {{ if and $dbUsername $dbPassword $dbSchema (hasKey $dbServers $dbHost) }}
+    {{ $serviceName := index $container.Labels "com.docker.compose.service" }}
+
+# --- {{ $serviceName }} ---
+echo "services[{{$serviceName}},username]={{ $dbUsername }}" >> /tmp/config.sh
+echo "services[{{$serviceName}},password]={{ $dbPassword }}" >> /tmp/config.sh
+echo "services[{{$serviceName}},schema]={{ $dbSchema }}" >> /tmp/config.sh
+echo "services[{{$serviceName}},host]={{ $dbHost }}" >> /tmp/config.sh
+echo "services[{{$serviceName}},port]={{ $dbPort }}" >> /tmp/config.sh
+
+updateCommand=''
+updateCommand+="CREATE DATABASE IF NOT EXISTS \`{{ $dbSchema }}\`;"
+updateCommand+="CREATE USER IF NOT EXISTS '{{ $dbUsername }}';"
+updateCommand+="ALTER USER '{{ $dbUsername }}' IDENTIFIED BY '{{ $dbPassword }}';"
+updateCommand+="GRANT USAGE ON *.* TO '{{ $dbUsername }}'@'%' IDENTIFIED BY '{{ $dbPassword }}';"
+updateCommand+="GRANT ALL privileges ON \`{{ $dbSchema }}\`.* TO '{{ $dbUsername }}'@'%';"
+updateCommand+="GRANT SUPER ON *.* TO '{{ $dbUsername   }}'@'%';"
+updateCommand+="FLUSH PRIVILEGES;"
+echo "Processing {{ $serviceName }}"
+echo "$updateCommand" | mysql -uroot -p{{ get $dbServers $dbHost }} -h{{$dbHost}}
+    {{ end }}
+{{ end }}
