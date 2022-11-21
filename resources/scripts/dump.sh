@@ -53,14 +53,17 @@ import()
   port=${services[$service,port]}
 
   connection_params="-u\"${username}\" -p\"${password}\" -h\"${host}\" -P${port} ${schema}"
-  local import_command="mysql ${connection_params}"
+  mysql_command="mysql ${connection_params}"
+  if [ -n "${DROPDB}" ]; then
+    drop_query="DROP DATABASE IF EXISTS ${schema}"
+    eval "${mysql_command} -e \"${drop_query}\""
+  fi
   local cat_command="cat"
-  dump_command="${dump_command} ${ignore_tables} ${dump_command_suffix})"
   if [[ $COMPRESSED == 1 ]]; then
     cat_command+=" | pigz -d"
   fi
-  import_command="${cat_command} | ${import_command}"
- eval "${import_command}"
+  import_command="${cat_command} | ${mysql_command}"
+  eval "${import_command}"
 }
 
 ARG1=${1}
