@@ -25,8 +25,7 @@ wait_for_db {{$serviceName}} {{ $container.Env.MYSQL_ROOT_PASSWORD }}
     {{ end }}
 {{ end }}
 truncate /tmp/update.sql -s 0
-truncate /tmp/config.sh -s 0
-echo "declare -A services" >> /tmp/config.sh
+mkdir -p /tmp/configs
 {{ range $container := . }}
     {{ $dbUsername := $container.Env.DB_USER }}
     {{ $dbPassword := $container.Env.DB_PASS }}
@@ -37,11 +36,13 @@ echo "declare -A services" >> /tmp/config.sh
     {{ $serviceName := index $container.Labels "com.docker.compose.service" }}
 
 # --- {{ $serviceName }} ---
-echo "services[{{$serviceName}},username]={{ $dbUsername }}" >> /tmp/config.sh
-echo "services[{{$serviceName}},password]={{ $dbPassword }}" >> /tmp/config.sh
-echo "services[{{$serviceName}},schema]={{ $dbSchema }}" >> /tmp/config.sh
-echo "services[{{$serviceName}},host]={{ $dbHost }}" >> /tmp/config.sh
-echo "services[{{$serviceName}},port]={{ $dbPort }}" >> /tmp/config.sh
+service_config_filename="/tmp/configs/{{$serviceName}}.sh"
+truncate ${service_config_filename} -s 0
+echo "services[{{$serviceName}},username]={{ $dbUsername }}" >> ${service_config_filename}
+echo "services[{{$serviceName}},password]={{ $dbPassword }}" >> ${service_config_filename}
+echo "services[{{$serviceName}},schema]={{ $dbSchema }}" >> ${service_config_filename}
+echo "services[{{$serviceName}},host]={{ $dbHost }}" >> ${service_config_filename}
+echo "services[{{$serviceName}},port]={{ $dbPort }}" >> ${service_config_filename}
 
 updateCommand=''
 updateCommand+="CREATE DATABASE IF NOT EXISTS \`{{ $dbSchema }}\`;"
