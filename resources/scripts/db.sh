@@ -6,8 +6,6 @@ for configFile in /tmp/configs/*; do
 done
 
 ANONYMIZED=${ANONYMIZED:-1}
-COMPRESSED=${COMPRESSED:-0}
-
 
 info() {
   service=${1}
@@ -17,7 +15,7 @@ info() {
   fi
   username=${services[$service,username]}
   schema=${services[$service,schema]}
-  echo "${username}" "${schema}"
+  echo -n "${username}" "${schema}"
 }
 
 dump()
@@ -88,11 +86,7 @@ import()
     drop_query="DROP DATABASE IF EXISTS ${schema}"
     eval "${mysql_command} -e \"${drop_query}\""
   fi
-  local cat_command="cat"
-  if [[ $COMPRESSED == 1 ]]; then
-    cat_command+=" | pigz -d"
-  fi
-  import_command="${cat_command} | ${mysql_command}"
+  import_command="${mysql_command}"
   eval "${import_command}"
 }
 
